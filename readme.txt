@@ -1,4 +1,4 @@
-=== PostEx WooCommerce Integration ===
+=== WooCommerce PostEx Shipping (Unofficial) ===
 Contributors: ahmadalauddin
 Donate link: https://postex.pk
 Tags: postex, woocommerce, shipping, logistics, pakistan, courier, airway-bills, cod
@@ -9,11 +9,11 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Seamlessly integrate PostEx Pakistan's logistics services with your WooCommerce store. Create shipments, manage airway bills, and track orders without leaving WordPress.
+Unofficial plugin for hassle-free PostEx consignment creation from existing WooCommerce orders. Transform any received order into a PostEx shipment with one click - no need to re-enter customer details, addresses, or order information.
 
 == Description ==
 
-Transform your WooCommerce store with direct PostEx shipment creation and management. This plugin eliminates the need to visit the PostEx merchant portal by bringing all essential features directly into your WordPress admin.
+This unofficial plugin transforms your WooCommerce store with direct PostEx shipment creation from existing orders. Eliminate the hassle of re-entering customer information by creating PostEx consignments directly from your received WooCommerce orders with a single click.
 
 = 🚚 One-Click Shipment Creation =
 Create PostEx orders directly from WooCommerce order pages with an intuitive modal interface. Edit customer details, shipping addresses, and order information before submission.

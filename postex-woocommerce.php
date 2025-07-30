@@ -1,21 +1,21 @@
 <?php
 /**
- * Plugin Name: PostEx Integration
- * Plugin URI: https://github.com/ahmadalauddin/postex-integration
- * Description: Seamlessly integrate PostEx Pakistan's logistics services with WooCommerce. Create shipments, manage airway bills, and track orders without leaving WordPress admin.
+ * Plugin Name: WooCommerce PostEx Shipping (Unofficial)
+ * Plugin URI: https://github.com/ahmadalauddin/woocommerce-postex-shipping-unofficial
+ * Description: Unofficial plugin for hassle-free PostEx consignment creation from existing WooCommerce orders. Transform any received order into a PostEx shipment with one click - no need to re-enter customer details, addresses, or order information.
  * Version: 1.0.0
  * Author: ahmadalauddin
  * Author URI: https://ahmadalauddin.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: postex-integration
+ * Text Domain: woocommerce-postex-shipping-unofficial
  * Requires at least: 5.0
  * Tested up to: 6.8
  * Requires PHP: 7.4
  * WC requires at least: 6.0
  * WC tested up to: 8.2
  *
- * @package PostEx_Integration
+ * @package WooCommerce_PostEx_Shipping_Unofficial
  * @version 1.0.0
  * @author ahmadalauddin
  */
@@ -434,7 +434,10 @@ function postex_wc_add_admin_menu() {
 // Settings page for PostEx configuration
 function postex_wc_settings_page() {
     // Handle form submission
-    if (isset($_POST['submit']) && wp_verify_nonce($_POST['_wpnonce'], 'postex_settings')) {
+    if (isset($_POST['submit']) && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'postex_settings')) {
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
         // Save settings
         update_option('postex_api_key', sanitize_text_field($_POST['postex_api_key']));
         update_option('postex_pickup_address_code', sanitize_text_field($_POST['postex_pickup_address_code']));
@@ -448,7 +451,10 @@ function postex_wc_settings_page() {
     }
 
     // Test API connection
-    if (isset($_POST['test_api']) && wp_verify_nonce($_POST['_wpnonce'], 'postex_settings')) {
+    if (isset($_POST['test_api']) && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'postex_settings')) {
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
         $test_api_key = sanitize_text_field($_POST['postex_api_key']);
         if (!empty($test_api_key)) {
             $ch = curl_init();
@@ -470,7 +476,7 @@ function postex_wc_settings_page() {
             if ($http_code === 200) {
                 echo '<div class="notice notice-success"><p>✅ API Connection Successful!</p></div>';
             } else {
-                echo '<div class="notice notice-error"><p>❌ API Connection Failed (HTTP ' . $http_code . ')</p></div>';
+                echo '<div class="notice notice-error"><p>❌ API Connection Failed (HTTP ' . esc_html($http_code) . ')</p></div>';
             }
         } else {
             echo '<div class="notice notice-error"><p>Please enter an API key to test.</p></div>';
@@ -708,61 +714,7 @@ function postex_wc_settings_page() {
         </div>
     </div>
 
-    <script>
-    function postexManualSync() {
-        const button = document.getElementById('manual_sync');
-        const originalText = button.innerHTML;
-
-        button.disabled = true;
-        button.innerHTML = '⏳ Syncing...';
-
-        const data = new FormData();
-        data.append('action', 'postex_manual_sync');
-        data.append('nonce', '<?php echo wp_create_nonce('postex_manual_sync'); ?>');
-
-        fetch(ajaxurl, {
-            method: 'POST',
-            body: data
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                alert('✅ ' + result.data.message);
-            } else {
-                alert('❌ ' + (result.data.message || 'Sync failed'));
-            }
-        })
-        .catch(error => {
-            alert('❌ Network error: ' + error.message);
-        })
-        .finally(() => {
-            button.disabled = false;
-            button.innerHTML = originalText;
-        });
-    }
-
-    function postexRefreshLogs() {
-        const data = new FormData();
-        data.append('action', 'postex_get_logs');
-        data.append('nonce', '<?php echo wp_create_nonce('postex_get_logs'); ?>');
-
-        fetch(ajaxurl, {
-            method: 'POST',
-            body: data
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                document.getElementById('postex-logs').innerHTML = result.data.logs;
-            } else {
-                console.error('Failed to refresh logs');
-            }
-        })
-        .catch(error => {
-            console.error('Error refreshing logs:', error);
-        });
-    }
-    </script>
+    <!-- Scripts are now properly enqueued via postex-admin.js -->
     <?php
 }
 
@@ -1215,6 +1167,7 @@ function postex_wc_ajax_stream_pdf() {
         header('Pragma: no-cache');
 
         // Output PDF data and exit immediately
+        // PDF data is binary and should not be escaped
         echo $result['pdf_data'];
         exit;
     } else {
@@ -1224,7 +1177,10 @@ function postex_wc_ajax_stream_pdf() {
 
 function postex_wc_airway_bills_page() {
     // Handle bulk actions
-    if (isset($_POST['action']) && $_POST['action'] === 'download_selected' && wp_verify_nonce($_POST['_wpnonce'], 'postex_airway_bills_action')) {
+    if (isset($_POST['action']) && sanitize_text_field($_POST['action']) === 'download_selected' && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'postex_airway_bills_action')) {
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
         $tracking_numbers = isset($_POST['tracking_numbers']) ? array_map('sanitize_text_field', $_POST['tracking_numbers']) : [];
 
         if (!empty($tracking_numbers)) {
@@ -1246,6 +1202,7 @@ function postex_wc_airway_bills_page() {
                 header('Pragma: no-cache');
 
                 // Output PDF data and exit immediately
+                // PDF data is binary and should not be escaped
                 echo $result['pdf_data'];
                 exit;
             } else {
@@ -1396,7 +1353,7 @@ function postex_wc_airway_bills_page() {
                                     <td>
                                         <?php if (isset($wc_orders[$order['trackingNumber']])): ?>
                                             <a href="<?php echo admin_url('post.php?post=' . $wc_orders[$order['trackingNumber']] . '&action=edit'); ?>" target="_blank">
-                                                Order #<?php echo $wc_orders[$order['trackingNumber']]; ?>
+                                                Order #<?php echo esc_html($wc_orders[$order['trackingNumber']]); ?>
                                             </a>
                                         <?php else: ?>
                                             <span style="color: #666;">Not found</span>
@@ -1441,53 +1398,7 @@ function postex_wc_airway_bills_page() {
 
     </div>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const selectAll = document.getElementById('cb-select-all');
-        const checkboxes = document.querySelectorAll('.tracking-checkbox');
-        const selectedCount = document.getElementById('selected-count');
-
-        // Select all functionality
-        if (selectAll) {
-            selectAll.addEventListener('change', function() {
-                checkboxes.forEach(checkbox => {
-                    checkbox.checked = this.checked;
-                });
-                updateSelectedCount();
-            });
-        }
-
-        // Individual checkbox change
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', updateSelectedCount);
-        });
-
-        function updateSelectedCount() {
-            const selected = document.querySelectorAll('.tracking-checkbox:checked').length;
-            if (selectedCount) {
-                selectedCount.textContent = selected > 0 ? `(${selected} selected)` : '';
-            }
-        }
-
-        // Initial count
-        updateSelectedCount();
-    });
-
-    function postexValidateSelection() {
-        const selected = document.querySelectorAll('.tracking-checkbox:checked').length;
-        if (selected === 0) {
-            alert('Please select at least one order to download PDFs.');
-            return false;
-        }
-
-        if (selected > 10) {
-            alert('You can download a maximum of 10 PDFs at once. Please select fewer orders.');
-            return false;
-        }
-
-        return confirm(`Download PDFs for ${selected} selected order(s)?`);
-    }
-    </script>
+    <!-- Scripts are now properly enqueued via postex-admin.js -->
     <?php
 }
 
@@ -1497,14 +1408,17 @@ function postex_wc_cities_admin_page() {
     $table_name = $wpdb->prefix . 'postex_cities';
 
     // Handle actions
-    if (isset($_POST['action']) && wp_verify_nonce($_POST['_wpnonce'], 'postex_cities_action')) {
-        if ($_POST['action'] === 'delete' && isset($_POST['city_id'])) {
+    if (isset($_POST['action']) && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'postex_cities_action')) {
+        if (!current_user_can('manage_woocommerce')) {
+            return;
+        }
+        if (sanitize_text_field($_POST['action']) === 'delete' && isset($_POST['city_id'])) {
             $wpdb->delete($table_name, ['id' => intval($_POST['city_id'])]);
             echo '<div class="notice notice-success"><p>City deleted successfully.</p></div>';
-        } elseif ($_POST['action'] === 'verify' && isset($_POST['city_id'])) {
+        } elseif (sanitize_text_field($_POST['action']) === 'verify' && isset($_POST['city_id'])) {
             $wpdb->update($table_name, ['status' => 'verified'], ['id' => intval($_POST['city_id'])]);
             echo '<div class="notice notice-success"><p>City verified successfully.</p></div>';
-        } elseif ($_POST['action'] === 'add_city') {
+        } elseif (sanitize_text_field($_POST['action']) === 'add_city') {
             $city_name = sanitize_text_field($_POST['city_name']);
             $normalized = postex_wc_normalize_city($city_name);
 
@@ -1667,22 +1581,14 @@ function postex_wc_cities_admin_page() {
                     'current' => $page,
                     'total' => $total_pages
                 ]);
-                echo $page_links;
+                echo wp_kses_post($page_links);
                 ?>
             </div>
         </div>
         <?php endif; ?>
     </div>
 
-    <script>
-    document.getElementById('filter-submit').addEventListener('click', function() {
-        const status = document.getElementById('filter-status').value;
-        const url = new URL(window.location);
-        url.searchParams.set('filter', status);
-        url.searchParams.delete('paged');
-        window.location = url;
-    });
-    </script>
+    <!-- Scripts are now properly enqueued via postex-admin.js -->
     <?php
 }
 
@@ -1799,6 +1705,25 @@ add_action('add_meta_boxes', function() {
 add_action('admin_enqueue_scripts', 'postex_wc_enqueue_admin_assets');
 function postex_wc_enqueue_admin_assets($hook) {
     global $pagenow;
+
+    // Enqueue admin scripts for PostEx settings/admin pages
+    if (strpos($hook, 'postex') !== false || (isset($_GET['page']) && strpos($_GET['page'], 'postex') !== false)) {
+        wp_enqueue_script(
+            'postex-admin',
+            plugins_url('assets/js/postex-admin.js', __FILE__),
+            array('jquery'),
+            '1.0.0',
+            true
+        );
+
+        // Localize script for AJAX
+        wp_localize_script('postex-admin', 'postex_ajax', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'manual_sync_nonce' => wp_create_nonce('postex_manual_sync'),
+            'get_logs_nonce' => wp_create_nonce('postex_get_logs')
+        ));
+    }
+
     if ($pagenow === 'post.php' && isset($_GET['post']) && get_post_type($_GET['post']) === 'shop_order') {
         wp_enqueue_script(
             'postex-wc-modal',
