@@ -1,21 +1,21 @@
 <?php
 /**
- * Plugin Name: WooCommerce PostEx Shipping (Unofficial)
- * Plugin URI: https://github.com/ahmadalauddin/woocommerce-postex-shipping-unofficial
- * Description: Unofficial plugin for hassle-free PostEx consignment creation from existing WooCommerce orders. Transform any received order into a PostEx shipment with one click - no need to re-enter customer details, addresses, or order information.
+ * Plugin Name: ShipsterX – PostEx Shipping for WooCommerce
+ * Plugin URI: https://github.com/ahmadalauddin/shipsterx-postex-shipping-woocommerce
+ * Description: Hassle-free PostEx consignment creation from existing WooCommerce orders. Transform any received order into a PostEx shipment with one click - no need to re-enter customer details, addresses, or order information.
  * Version: 1.0.0
  * Author: ahmadalauddin
  * Author URI: https://ahmadalauddin.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: woocommerce-postex-shipping-unofficial
+ * Text Domain: shipsterx-postex-shipping-woocommerce
  * Requires at least: 5.0
  * Tested up to: 6.8
  * Requires PHP: 7.4
  * WC requires at least: 6.0
  * WC tested up to: 8.2
  *
- * @package WooCommerce_PostEx_Shipping_Unofficial
+ * @package ShipsterX_PostEx_Shipping_WooCommerce
  * @version 1.0.0
  * @author ahmadalauddin
  */
@@ -1709,7 +1709,7 @@ function postex_wc_enqueue_admin_assets($hook) {
     // Enqueue admin scripts for PostEx settings/admin pages
     if (strpos($hook, 'postex') !== false || (isset($_GET['page']) && strpos($_GET['page'], 'postex') !== false)) {
         wp_enqueue_script(
-            'postex-admin',
+            'shipsterx-admin',
             plugins_url('assets/js/postex-admin.js', __FILE__),
             array('jquery'),
             '1.0.0',
@@ -1717,7 +1717,7 @@ function postex_wc_enqueue_admin_assets($hook) {
         );
 
         // Localize script for AJAX
-        wp_localize_script('postex-admin', 'postex_ajax', array(
+        wp_localize_script('shipsterx-admin', 'postex_ajax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
             'manual_sync_nonce' => wp_create_nonce('postex_manual_sync'),
             'get_logs_nonce' => wp_create_nonce('postex_get_logs')
