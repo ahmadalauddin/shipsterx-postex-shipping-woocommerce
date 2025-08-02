@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: ShipsterX – PostEx Shipping for WooCommerce
+ * Plugin Name: ShipsterX - Shipping with PostEx for WooCommerce
  * Plugin URI: https://github.com/ahmadalauddin/shipsterx-postex-shipping-woocommerce
  * Description: Hassle-free PostEx consignment creation from existing WooCommerce orders. Transform any received order into a PostEx shipment with one click - no need to re-enter customer details, addresses, or order information.
  * Version: 1.0.0
@@ -8,7 +8,7 @@
  * Author URI: https://ahmadalauddin.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: shipsterx-postex-shipping-woocommerce
+ * Text Domain: postex-integration
  * Requires at least: 5.0
  * Tested up to: 6.8
  * Requires PHP: 7.4
@@ -86,10 +86,10 @@ class PostEx_Client {
     public function list_unbooked($start_date = null, $end_date = null) {
         // Use the correct v2 endpoint from documentation section 3.6 with required startDate parameter
         if (!$start_date) {
-            $start_date = date('Y-m-d', strtotime('-30 days')); // Default: last 30 days
+            $start_date = gmdate('Y-m-d', strtotime('-30 days')); // Default: last 30 days
         }
         if (!$end_date) {
-            $end_date = date('Y-m-d'); // Default: today
+            $end_date = gmdate('Y-m-d'); // Default: today
         }
 
         $url = $this->base_url . 'services/integration/api/order/v2/get-unbooked-orders';
@@ -164,7 +164,7 @@ class PostEx_Client {
             return [
                 'success' => true,
                 'pdf_data' => $body,
-                'filename' => 'postex-airway-bills-' . date('Y-m-d-H-i-s') . '.pdf'
+                'filename' => 'postex-airway-bills-' . gmdate('Y-m-d-H-i-s') . '.pdf'
             ];
         } else {
             $json = json_decode($body, true);
@@ -341,7 +341,7 @@ function postex_wc_learn_city_success($raw_city, $postex_format) {
 
     // Log the learning
     file_put_contents(WP_CONTENT_DIR . '/postex-api-debug.log',
-        date('c') . " CITY LEARNED: '$raw_city' -> '$postex_format' (normalized: '$normalized')\n",
+        gmdate('c') . " CITY LEARNED: '$raw_city' -> '$postex_format' (normalized: '$normalized')\n",
         FILE_APPEND
     );
 }
@@ -457,21 +457,22 @@ function postex_wc_settings_page() {
         }
         $test_api_key = sanitize_text_field($_POST['postex_api_key']);
         if (!empty($test_api_key)) {
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => 'https://api.postex.pk/services/integration/api/order/v2/get-unbooked-orders?startDate=' . date('Y-m-d', strtotime('-7 days')) . '&endDate=' . date('Y-m-d'),
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 10,
-                CURLOPT_HTTPHEADER => [
-                    'token: ' . $test_api_key,
-                    'Content-Type: application/json',
-                    'Accept: application/json',
-                ],
+            $url = 'https://api.postex.pk/services/integration/api/order/v2/get-unbooked-orders?startDate=' . gmdate('Y-m-d', strtotime('-7 days')) . '&endDate=' . gmdate('Y-m-d');
+            
+            $response = wp_remote_get($url, [
+                'timeout' => 10,
+                'headers' => [
+                    'token' => $test_api_key,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ]
             ]);
 
-            $response = curl_exec($ch);
-            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            if (is_wp_error($response)) {
+                $http_code = 0;
+            } else {
+                $http_code = wp_remote_retrieve_response_code($response);
+            }
 
             if ($http_code === 200) {
                 echo '<div class="notice notice-success"><p>✅ API Connection Successful!</p></div>';
@@ -674,9 +675,9 @@ function postex_wc_settings_page() {
                                 <?php
                                 $next_sync = wp_next_scheduled('postex_wc_status_sync_cron');
                                 if ($next_sync) {
-                                    echo 'Next sync: ' . wp_date('Y-m-d H:i:s', $next_sync);
+                                    echo 'Next sync: ' . esc_html(wp_date('Y-m-d H:i:s', $next_sync));
                                 } else {
-                                    echo 'Not scheduled';
+                                    echo esc_html('Not scheduled');
                                 }
                                 ?>
                             </td>
@@ -775,8 +776,15 @@ class PostEx_Logger {
         }
 
         if (filesize(self::$log_file) > self::$max_log_size) {
+            // Initialize WordPress filesystem
+            if (!function_exists('WP_Filesystem')) {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+            }
+            WP_Filesystem();
+            global $wp_filesystem;
+
             $backup_file = self::$log_file . '.' . wp_date('Y-m-d-H-i-s') . '.bak';
-            rename(self::$log_file, $backup_file);
+            $wp_filesystem->move(self::$log_file, $backup_file);
 
             // Keep only last 5 backup files
             $backup_files = glob(WP_CONTENT_DIR . '/postex-log.php.*.bak');
@@ -787,7 +795,7 @@ class PostEx_Logger {
 
                 // Delete oldest files
                 for ($i = 0; $i < count($backup_files) - 5; $i++) {
-                    unlink($backup_files[$i]);
+                    wp_delete_file($backup_files[$i]);
                 }
             }
 
@@ -901,8 +909,8 @@ function postex_wc_sync_order_statuses() {
     $client = new PostEx_Client();
 
     // Get orders from last 30 days to check for status updates
-    $start_date = date('Y-m-d', strtotime('-30 days'));
-    $end_date = date('Y-m-d');
+    $start_date = gmdate('Y-m-d', strtotime('-30 days'));
+    $end_date = gmdate('Y-m-d');
 
     // Don't use cache for status sync
     $postex_orders = $client->list_unbooked($start_date, $end_date);
@@ -1094,11 +1102,11 @@ function postex_wc_show_order_column($column) {
             }
 
             echo '<div style="font-size: 11px;">';
-            echo '<span style="color: ' . $status_color . '; font-weight: bold;">' . esc_html($status_text) . '</span><br>';
+            echo '<span style="color: ' . esc_attr($status_color) . '; font-weight: bold;">' . esc_html($status_text) . '</span><br>';
             echo '<small>' . esc_html($tracking) . '</small>';
 
             if ($last_sync) {
-                echo '<br><small style="color: #666;">Synced: ' . wp_date('M j, H:i', strtotime($last_sync)) . '</small>';
+                echo '<br><small style="color: #666;">Synced: ' . esc_html(wp_date('M j, H:i', strtotime($last_sync))) . '</small>';
             }
             echo '</div>';
         } else {
@@ -1127,7 +1135,7 @@ function postex_wc_ajax_download_awb() {
         // Return success with filename for download
         wp_send_json_success([
             'filename' => $result['filename'],
-            'download_url' => admin_url('admin-ajax.php?action=postex_stream_pdf&nonce=' . wp_create_nonce('postex_stream_pdf') . '&tracking_numbers=' . implode(',', $tracking_numbers))
+            'download_url' => esc_url(admin_url('admin-ajax.php?action=postex_stream_pdf&nonce=' . wp_create_nonce('postex_stream_pdf') . '&tracking_numbers=' . implode(',', $tracking_numbers)))
         ]);
     } else {
         $error_message = 'Failed to generate PDF: ' . (isset($result['error']) ? $result['error'] : 'Unknown error') .
@@ -1215,8 +1223,8 @@ function postex_wc_airway_bills_page() {
     }
 
     // Get date range from form or use defaults
-    $start_date = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : date('Y-m-d', strtotime('-30 days'));
-    $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : date('Y-m-d');
+    $start_date = isset($_POST['start_date']) ? sanitize_text_field($_POST['start_date']) : gmdate('Y-m-d', strtotime('-30 days'));
+    $end_date = isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : gmdate('Y-m-d');
 
     // Get un-booked orders with caching (cache key includes date range)
     $cache_key = 'postex_unbooked_orders_' . $start_date . '_' . $end_date;
@@ -1242,7 +1250,7 @@ function postex_wc_airway_bills_page() {
         if (empty($api_key) || empty($pickup_code)): ?>
             <div class="notice notice-warning">
                 <p><strong>PostEx Configuration Required:</strong>
-                    <a href="<?php echo admin_url('admin.php?page=postex-settings'); ?>">Configure API settings</a>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=postex-settings')); ?>">Configure API settings</a>
                     to use this feature.
                 </p>
             </div>
@@ -1352,7 +1360,7 @@ function postex_wc_airway_bills_page() {
                                     </td>
                                     <td>
                                         <?php if (isset($wc_orders[$order['trackingNumber']])): ?>
-                                            <a href="<?php echo admin_url('post.php?post=' . $wc_orders[$order['trackingNumber']] . '&action=edit'); ?>" target="_blank">
+                                            <a href="<?php echo esc_url(admin_url('post.php?post=' . $wc_orders[$order['trackingNumber']] . '&action=edit')); ?>" target="_blank">
                                                 Order #<?php echo esc_html($wc_orders[$order['trackingNumber']]); ?>
                                             </a>
                                         <?php else: ?>
@@ -1370,7 +1378,7 @@ function postex_wc_airway_bills_page() {
                                             <?php echo esc_html($order['orderStatus'] ?? 'UnBooked'); ?>
                                         </span>
                                     </td>
-                                    <td><?php echo isset($order['orderDate']) ? wp_date('Y-m-d H:i', strtotime($order['orderDate'])) : 'N/A'; ?></td>
+                                    <td><?php echo isset($order['orderDate']) ? esc_html(wp_date('Y-m-d H:i', strtotime($order['orderDate']))) : esc_html('N/A'); ?></td>
                                     <td><?php echo isset($order['codAmount']) ? 'PKR ' . number_format($order['codAmount'], 2) : 'N/A'; ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1467,19 +1475,19 @@ function postex_wc_cities_admin_page() {
         <!-- Statistics -->
         <div class="postex-stats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0;">
             <div class="stats-card" style="background: #f1f1f1; padding: 15px; border-radius: 4px; text-align: center;">
-                <h3 style="margin: 0; color: #333;"><?php echo $stats->total; ?></h3>
+                <h3 style="margin: 0; color: #333;"><?php echo esc_html($stats->total); ?></h3>
                 <p style="margin: 5px 0 0;">Total Cities</p>
             </div>
             <div class="stats-card" style="background: #d4edda; padding: 15px; border-radius: 4px; text-align: center;">
-                <h3 style="margin: 0; color: #155724;"><?php echo $stats->verified; ?></h3>
+                <h3 style="margin: 0; color: #155724;"><?php echo esc_html($stats->verified); ?></h3>
                 <p style="margin: 5px 0 0;">Verified</p>
             </div>
             <div class="stats-card" style="background: #f8d7da; padding: 15px; border-radius: 4px; text-align: center;">
-                <h3 style="margin: 0; color: #721c24;"><?php echo $stats->failed; ?></h3>
+                <h3 style="margin: 0; color: #721c24;"><?php echo esc_html($stats->failed); ?></h3>
                 <p style="margin: 5px 0 0;">Failed</p>
             </div>
             <div class="stats-card" style="background: #fff3cd; padding: 15px; border-radius: 4px; text-align: center;">
-                <h3 style="margin: 0; color: #856404;"><?php echo $stats->pending; ?></h3>
+                <h3 style="margin: 0; color: #856404;"><?php echo esc_html($stats->pending); ?></h3>
                 <p style="margin: 5px 0 0;">Pending</p>
             </div>
         </div>
@@ -1532,22 +1540,22 @@ function postex_wc_cities_admin_page() {
                     </td>
                     <td><?php echo esc_html($city->postex_format); ?></td>
                     <td>
-                        <span class="status-badge status-<?php echo $city->status; ?>" style="padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;
-                            <?php if ($city->status === 'verified') echo 'background: #d4edda; color: #155724;';
-                                  elseif ($city->status === 'failed') echo 'background: #f8d7da; color: #721c24;';
-                                  else echo 'background: #fff3cd; color: #856404;'; ?>">
-                            <?php echo ucfirst($city->status); ?>
+                        <span class="status-badge status-<?php echo esc_attr($city->status); ?>" style="padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;
+                            <?php if ($city->status === 'verified') echo esc_attr('background: #d4edda; color: #155724;');
+                                  elseif ($city->status === 'failed') echo esc_attr('background: #f8d7da; color: #721c24;');
+                                  else echo esc_attr('background: #fff3cd; color: #856404;'); ?>">
+                            <?php echo esc_html(ucfirst($city->status)); ?>
                         </span>
                     </td>
-                    <td><?php echo $city->success_count; ?></td>
-                    <td><?php echo $city->failure_count; ?></td>
-                    <td><?php echo $city->last_used ? wp_date('Y-m-d H:i', strtotime($city->last_used)) : '-'; ?></td>
+                    <td><?php echo esc_html($city->success_count); ?></td>
+                    <td><?php echo esc_html($city->failure_count); ?></td>
+                    <td><?php echo $city->last_used ? esc_html(wp_date('Y-m-d H:i', strtotime($city->last_used))) : esc_html('-'); ?></td>
                     <td>
                         <?php if ($city->status !== 'verified'): ?>
                         <form method="post" style="display: inline;">
                             <?php wp_nonce_field('postex_cities_action'); ?>
                             <input type="hidden" name="action" value="verify">
-                            <input type="hidden" name="city_id" value="<?php echo $city->id; ?>">
+                            <input type="hidden" name="city_id" value="<?php echo esc_attr($city->id); ?>">
                             <button type="submit" class="button button-small" onclick="return confirm('Verify this city?')">Verify</button>
                         </form>
                         <?php endif; ?>
@@ -1555,7 +1563,7 @@ function postex_wc_cities_admin_page() {
                         <form method="post" style="display: inline;">
                             <?php wp_nonce_field('postex_cities_action'); ?>
                             <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="city_id" value="<?php echo $city->id; ?>">
+                            <input type="hidden" name="city_id" value="<?php echo esc_attr($city->id); ?>">
                             <button type="submit" class="button button-small button-link-delete" onclick="return confirm('Delete this city?')" style="color: #a00;">Delete</button>
                         </form>
                     </td>
@@ -1595,7 +1603,7 @@ function postex_wc_cities_admin_page() {
 // Add settings tab to WooCommerce Shipping
 add_filter('woocommerce_get_sections_shipping', 'postex_wc_add_settings_section');
 function postex_wc_add_settings_section($sections) {
-    $sections['postex'] = __('PostEx', 'postex-wc');
+    $sections['postex'] = __('PostEx', 'postex-integration');
     return $sections;
 }
 
@@ -1604,38 +1612,38 @@ function postex_wc_settings($settings, $current_section) {
     if ($current_section == 'postex') {
         $settings = array(
             array(
-                'title' => __('PostEx Settings', 'postex-wc'),
+                'title' => __('PostEx Settings', 'postex-integration'),
                 'type'  => 'title',
                 'desc'  => '',
                 'id'    => 'postex_settings_title'
             ),
             array(
-                'title'    => __('API Key', 'postex-wc'),
-                'desc'     => __('Enter your PostEx API key.', 'postex-wc'),
+                'title'    => __('API Key', 'postex-integration'),
+                'desc'     => __('Enter your PostEx API key.', 'postex-integration'),
                 'id'       => 'postex_api_key',
                 'type'     => 'text',
                 'default'  => '',
                 'desc_tip' => true,
             ),
             array(
-                'title'    => __('Pickup Address Code', 'postex-wc'),
-                'desc'     => __('Enter your PostEx pickup address code (e.g., 003).', 'postex-wc'),
+                'title'    => __('Pickup Address Code', 'postex-integration'),
+                'desc'     => __('Enter your PostEx pickup address code (e.g., 003).', 'postex-integration'),
                 'id'       => 'postex_pickup_address_code',
                 'type'     => 'text',
                 'default'  => '',
                 'desc_tip' => true,
             ),
             array(
-                'title'    => __('Pickup City', 'postex-wc'),
-                'desc'     => __('City name for your pickup address.', 'postex-wc'),
+                'title'    => __('Pickup City', 'postex-integration'),
+                'desc'     => __('City name for your pickup address.', 'postex-integration'),
                 'id'       => 'postex_pickup_city',
                 'type'     => 'text',
                 'default'  => 'Lahore',
                 'desc_tip' => true,
             ),
             array(
-                'title'    => __('Default Weight (kg)', 'postex-wc'),
-                'desc'     => __('Default weight for orders when not specified.', 'postex-wc'),
+                'title'    => __('Default Weight (kg)', 'postex-integration'),
+                'desc'     => __('Default weight for orders when not specified.', 'postex-integration'),
                 'id'       => 'postex_default_weight',
                 'type'     => 'number',
                 'default'  => '0.5',
@@ -1646,21 +1654,21 @@ function postex_wc_settings($settings, $current_section) {
                 'desc_tip' => true,
             ),
             array(
-                'title'    => __('Default Dimensions (cm)', 'postex-wc'),
-                'desc'     => __('Default package dimensions: Length x Width x Height', 'postex-wc'),
+                'title'    => __('Default Dimensions (cm)', 'postex-integration'),
+                'desc'     => __('Default package dimensions: Length x Width x Height', 'postex-integration'),
                 'id'       => 'postex_default_dimensions',
                 'type'     => 'text',
                 'default'  => '15x10x5',
                 'desc_tip' => true,
             ),
             array(
-                'title'    => __('Next Ref Number', 'postex-wc'),
+                'title'    => __('Next Ref Number', 'postex-integration'),
                 'id'       => 'postex_next_ref_number',
                 'type'     => 'number',
                 'default'  => 1000,
             ),
             array(
-                'title'    => __('Auto Increment Ref #', 'postex-wc'),
+                'title'    => __('Auto Increment Ref #', 'postex-integration'),
                 'id'       => 'postex_auto_increment',
                 'type'     => 'checkbox',
                 'default'  => 'yes',
@@ -1680,15 +1688,15 @@ function postex_wc_settings($settings, $current_section) {
 add_action('add_meta_boxes', function() {
     add_meta_box(
         'postex_wc_order_box',
-        __('PostEx Shipment', 'postex-wc'),
+        __('PostEx Shipment', 'postex-integration'),
         function($post) {
             $order = wc_get_order($post->ID);
             if ($order && !$order->get_meta('_postex_tracking')) {
-                echo '<button type="button" class="button button-primary postex_create" style="margin-bottom:10px;">🚚 ' . esc_html__('Create PostEx Order', 'postex-wc') . '</button>';
+                echo '<button type="button" class="button button-primary postex_create" style="margin-bottom:10px;">🚚 ' . esc_html__('Create PostEx Order', 'postex-integration') . '</button>';
             } else if ($order) {
                 $tracking = $order->get_meta('_postex_tracking');
                 $status = $order->get_meta('_postex_status');
-                echo '<p style="color:green;">' . esc_html__('PostEx order created', 'postex-wc') . '</p>';
+                echo '<p style="color:green;">' . esc_html__('PostEx order created', 'postex-integration') . '</p>';
                 echo '<p><strong>Tracking:</strong> ' . esc_html($tracking) . '</p>';
                 if ($status) {
                     echo '<p><strong>Status:</strong> ' . esc_html($status) . '</p>';
@@ -1718,7 +1726,7 @@ function postex_wc_enqueue_admin_assets($hook) {
 
         // Localize script for AJAX
         wp_localize_script('shipsterx-admin', 'postex_ajax', array(
-            'ajaxurl' => admin_url('admin-ajax.php'),
+            'ajaxurl' => esc_url(admin_url('admin-ajax.php')),
             'manual_sync_nonce' => wp_create_nonce('postex_manual_sync'),
             'get_logs_nonce' => wp_create_nonce('postex_get_logs')
         ));
@@ -1726,7 +1734,7 @@ function postex_wc_enqueue_admin_assets($hook) {
 
     if ($pagenow === 'post.php' && isset($_GET['post']) && get_post_type($_GET['post']) === 'shop_order') {
         wp_enqueue_script(
-            'postex-wc-modal',
+            'shipsterx-postex-shipping-woocommerce-modal',
             plugins_url('assets/js/postex-modal.js', __FILE__),
             array('wp-element', 'jquery'),
             '1.0.0',
@@ -1747,7 +1755,7 @@ function postex_wc_enqueue_admin_assets($hook) {
             }
         }
 
-        wp_localize_script('postex-wc-modal', 'PostExWC', array(
+        wp_localize_script('shipsterx-postex-shipping-woocommerce-modal', 'PostExWC', array(
             'nonce' => wp_create_nonce('postex_wc_order_action'),
             'order_id' => intval($_GET['post']),
             'order_data' => $order ? [
@@ -1898,7 +1906,7 @@ function postex_wc_ajax_create_order() {
         $error_message = $response->get_error_message();
         if (defined('WP_DEBUG') && WP_DEBUG) {
             $log_path = WP_CONTENT_DIR . '/postex-api-debug.log';
-            file_put_contents($log_path, date('c') . "\nAPI ERROR: $error_message\n\n", FILE_APPEND);
+            file_put_contents($log_path, gmdate('c') . "\nAPI ERROR: $error_message\n\n", FILE_APPEND);
         }
         wp_send_json_error(['message' => 'API error: ' . $error_message]);
     }
@@ -1910,7 +1918,7 @@ function postex_wc_ajax_create_order() {
     $log_path = WP_CONTENT_DIR . '/postex-api-debug.log';
     file_put_contents(
         $log_path,
-        date('c') .
+        gmdate('c') .
         "\nAPI Key: " . substr($api_key, 0, 10) . "..." .
         "\nRequest Payload: " . print_r($payload, true) .
         "\nResponse Code: " . $code .

@@ -1,4 +1,4 @@
-=== ShipsterX – PostEx Shipping for WooCommerce ===
+=== ShipsterX - Shipping with PostEx for WooCommerce ===
 Contributors: ahmadalauddin
 Donate link: https://postex.pk
 Tags: postex, woocommerce, shipping, logistics, pakistan, courier, airway-bills, cod
@@ -43,7 +43,7 @@ Dynamic city learning system that improves delivery success rates. The plugin le
 = Automatic Installation =
 1. Log in to your WordPress admin panel
 2. Navigate to Plugins > Add New
-3. Search for "PostEx WooCommerce Integration"
+3. Search for "ShipsterX - Shipping with PostEx for WooCommerce"
 4. Click "Install Now" and then "Activate"
 
 = Manual Installation =
@@ -115,7 +115,7 @@ Use the WordPress.org support forum for plugin issues. Contact PostEx Pakistan d
 == Upgrade Notice ==
 
 = 1.0.0 =
-Initial release of PostEx WooCommerce Integration. Install to streamline your PostEx shipping workflow.
+Initial release of ShipsterX - Shipping with PostEx for WooCommerce. Install to streamline your PostEx shipping workflow.
 
 == Privacy Policy ==
 

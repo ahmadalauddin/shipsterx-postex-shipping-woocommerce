@@ -1,4 +1,4 @@
-# PostEx WooCommerce Plugin
+# ShipsterX - Shipping with PostEx for WooCommerce
 
 ## 🚚 Seamless PostEx Integration for WooCommerce
 
