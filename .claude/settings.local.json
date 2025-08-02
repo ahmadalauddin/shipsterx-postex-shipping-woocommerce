@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php:*)",
+      "Bash(pdftotext:*)",
+      "Bash(python3:*)",
+      "Bash(rm:*)",
+      "Bash(zip:*)",
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(git pull:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": []
+  }
+}
